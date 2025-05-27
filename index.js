@@ -23,6 +23,9 @@ client.on('message', async (topic, message) => {
   const payload = message.toString();
   console.log('📨 수신된 메시지:', payload);
 
+  // 메시지 전송 로그
+  console.log('🚀 messageme로 전송할 데이터:', payload);
+
   try {
     const response = await axios.post(
       'http://www.messageme.co.kr/APIV2/API/sms_send',
@@ -45,6 +48,8 @@ client.on('message', async (topic, message) => {
     if (error.response) {
       console.error('📋 오류 코드:', error.response.status);
       console.error('📋 오류 내용:', error.response.data);
+    } else {
+      console.error('📋 messageme 응답 없음 또는 타임아웃');
     }
     client.publish(topic, 'relay_response=fail');
   }
