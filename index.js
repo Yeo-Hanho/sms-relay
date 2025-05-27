@@ -39,9 +39,9 @@ client.on('message', async (topic, message) => {
     console.log('📋 상태 코드:', response.status);
     console.log('📋 응답 내용:', response.data);
 
-    client.publish(topic, `relay_response=${encodeURIComponent(response.data)}`);
+    client.publish(topic, `relay_response=${encodeURIComponent(JSON.stringify(response.data))}`);
   } catch (error) {
-    console.error(`❌ messageme 전송 실패:`, error.message);
+    console.error('❌ messageme 전송 실패:', error.message);
     if (error.response) {
       console.error('📋 오류 코드:', error.response.status);
       console.error('📋 오류 내용:', error.response.data);
@@ -49,7 +49,6 @@ client.on('message', async (topic, message) => {
     client.publish(topic, 'relay_response=fail');
   }
 
-  // 모든 응답 처리 후 연결 종료
   client.end(() => {
     console.log('🔌 MQTT 연결 종료됨');
   });
