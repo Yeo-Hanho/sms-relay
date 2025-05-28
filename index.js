@@ -35,6 +35,8 @@ client.on('message', async (topic, message) => {
   console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
   console.log('🚀 messageme로 전송할 데이터 본문:', payload);
 
+  let responsePayload;
+
   try {
     const response = await axios.post(
       targetUrl,
@@ -51,24 +53,21 @@ client.on('message', async (topic, message) => {
     console.log('📋 상태 코드:', response.status);
     console.log('📋 응답 내용:', response.data);
 
-    const responseString = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data;
-    console.log('📤 아두이노로 전달할 응답:', responseString);
-    client.publish(topic, `relay_response=${responseString}`);
+    responsePayload = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data;
   } catch (error) {
     console.error('❌ messageme 전송 실패:', error.message);
     if (error.response) {
       console.error('📋 오류 코드:', error.response.status);
       console.error('📋 오류 내용:', error.response.data);
-      const failResponse = JSON.stringify({ result: '1000' });
-      console.log('📤 아두이노로 전달할 실패 응답:', failResponse);
-      client.publish(topic, 'relay_response=' + failResponse);
+      responsePayload = JSON.stringify({ result: '1000' });
     } else {
       console.error('📋 messageme 응답 없음 또는 타임아웃');
-      const timeoutResponse = JSON.stringify({ result: '2000' });
-      console.log('📤 아두이노로 전달할 타임아웃 응답:', timeoutResponse);
-      client.publish(topic, 'relay_response=' + timeoutResponse);
+      responsePayload = JSON.stringify({ result: '2000' });
     }
   }
+
+  console.log('📤 아두이노로 전달할 응답:', responsePayload);
+  client.publish(topic, `relay_response=${responsePayload}`);
 });
 
 app.get('/', (req, res) => {
