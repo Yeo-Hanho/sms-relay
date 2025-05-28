@@ -8,8 +8,6 @@ const PORT = process.env.PORT || 10000;
 const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
 
-let hasProcessedMessage = false; // 메시지 처리 여부 플래그
-
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
   client.subscribe(topic, (err) => {
@@ -22,9 +20,6 @@ client.on('connect', () => {
 });
 
 client.on('message', async (topic, message) => {
-  if (hasProcessedMessage) return; // 이미 처리한 경우 무시
-  hasProcessedMessage = true;
-
   const payload = message.toString();
   console.log('📨 수신된 메시지:', payload);
 
@@ -75,3 +70,4 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
