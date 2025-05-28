@@ -48,16 +48,22 @@ client.on('message', async (topic, message) => {
     console.log('📋 상태 코드:', response.status);
     console.log('📋 응답 내용:', response.data);
 
-    client.publish(topic, `relay_response=${JSON.stringify(response.data)}`);
+    const responseString = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data;
+    console.log('📤 아두이노로 전달할 응답:', responseString);
+    client.publish(topic, `relay_response=${responseString}`);
   } catch (error) {
     console.error('❌ messageme 전송 실패:', error.message);
     if (error.response) {
       console.error('📋 오류 코드:', error.response.status);
       console.error('📋 오류 내용:', error.response.data);
-      client.publish(topic, 'relay_response=' + JSON.stringify({ result: '1000' }));
+      const failResponse = JSON.stringify({ result: '1000' });
+      console.log('📤 아두이노로 전달할 실패 응답:', failResponse);
+      client.publish(topic, 'relay_response=' + failResponse);
     } else {
       console.error('📋 messageme 응답 없음 또는 타임아웃');
-      client.publish(topic, 'relay_response=' + JSON.stringify({ result: '2000' }));
+      const timeoutResponse = JSON.stringify({ result: '2000' });
+      console.log('📤 아두이노로 전달할 타임아웃 응답:', timeoutResponse);
+      client.publish(topic, 'relay_response=' + timeoutResponse);
     }
   }
 });
