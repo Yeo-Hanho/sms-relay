@@ -49,13 +49,12 @@ client.on('message', async (topic, message) => {
     if (error.response) {
       console.error('📋 오류 코드:', error.response.status);
       console.error('📋 오류 내용:', error.response.data);
+      client.publish(topic, 'relay_response=' + encodeURIComponent(JSON.stringify({ result: '1000' })));
     } else {
       console.error('📋 messageme 응답 없음 또는 타임아웃');
+      client.publish(topic, 'relay_response=' + encodeURIComponent(JSON.stringify({ result: '2000' })));
     }
-    client.publish(topic, 'relay_response=fail');
   }
-
-  // 연결 종료하지 않고 유지
 });
 
 app.get('/', (req, res) => {
