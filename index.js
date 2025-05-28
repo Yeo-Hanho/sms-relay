@@ -23,12 +23,13 @@ client.on('message', async (topic, message) => {
   const payload = message.toString();
   console.log('📨 수신된 메시지:', payload);
 
-  // 메시지 전송 로그
-  console.log('🚀 messageme로 전송할 데이터:', payload);
+  const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
+  console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
+  console.log('🚀 messageme로 전송할 데이터 본문:', payload);
 
   try {
     const response = await axios.post(
-      'http://www.messageme.co.kr/APIV2/API/sms_send',
+      targetUrl,
       payload,
       {
         headers: {
@@ -54,9 +55,7 @@ client.on('message', async (topic, message) => {
     client.publish(topic, 'relay_response=fail');
   }
 
-  client.end(() => {
-    console.log('🔌 MQTT 연결 종료됨');
-  });
+  // 연결 종료하지 않고 유지
 });
 
 app.get('/', (req, res) => {
