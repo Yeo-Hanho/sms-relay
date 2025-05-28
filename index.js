@@ -1,13 +1,14 @@
 const mqtt = require('mqtt');
 const express = require('express');
 const axios = require('axios');
-const querystring = require('querystring');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
+
+let hasProcessedMessage = false; // 메시지 처리 여부 플래그
 
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
@@ -21,20 +22,20 @@ client.on('connect', () => {
 });
 
 client.on('message', async (topic, message) => {
+  if (hasProcessedMessage) return; // 이미 처리한 경우 무시
+  hasProcessedMessage = true;
+
   const payload = message.toString();
   console.log('📨 수신된 메시지:', payload);
 
-  const parsed = querystring.parse(payload);
-  const formattedPayload = querystring.stringify(parsed);
-
   const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
   console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
-  console.log('🚀 messageme로 전송할 데이터 본문:', formattedPayload);
+  console.log('🚀 messageme로 전송할 데이터 본문:', payload);
 
   try {
     const response = await axios.post(
       targetUrl,
-      formattedPayload,
+      payload,
       {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
