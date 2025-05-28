@@ -44,34 +44,36 @@ client.on('message', async (topic, message) => {
   console.log('🚀 messageme로 전송할 데이터 본문:', payload);
 
   let responsePayload;
+  let messagemeResponded = false;
 
   try {
-    const response = await axios.post(
-      targetUrl,
-      payload,
-      {
+    const response = await Promise.race([
+      axios.post(targetUrl, payload, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         timeout: 8000,
-      }
-    );
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('response-timeout')), 3000))
+    ]);
 
     console.log('✅ messageme 응답 수신 성공');
     console.log('📋 상태 코드:', response.status);
     console.log('📋 응답 내용:', response.data);
 
+    messagemeResponded = true;
     responsePayload = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data;
   } catch (error) {
     console.error('❌ messageme 전송 실패:', error.message);
-    if (error.response) {
+    if (error.message === 'response-timeout') {
+      console.error('📋 messageme 응답 대기 시간 초과');
+    } else if (error.response) {
       console.error('📋 오류 코드:', error.response.status);
       console.error('📋 오류 내용:', error.response.data);
-      responsePayload = JSON.stringify({ result: '1000' });
     } else {
       console.error('📋 messageme 응답 없음 또는 타임아웃');
-      responsePayload = JSON.stringify({ result: '2000' });
     }
+    responsePayload = JSON.stringify({ result: '1000' });
   }
 
   console.log('📤 아두이노로 전달할 응답:', responsePayload);
