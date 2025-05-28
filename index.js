@@ -8,6 +8,8 @@ const PORT = process.env.PORT || 10000;
 const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
 
+let hasProcessedMessage = false; // 메시지 처리 여부 플래그
+
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
   client.subscribe(topic, (err) => {
@@ -20,6 +22,9 @@ client.on('connect', () => {
 });
 
 client.on('message', async (topic, message) => {
+  if (hasProcessedMessage) return; // 이미 처리한 경우 무시
+  hasProcessedMessage = true;
+
   const payload = message.toString();
   console.log('📨 수신된 메시지:', payload);
 
@@ -43,16 +48,16 @@ client.on('message', async (topic, message) => {
     console.log('📋 상태 코드:', response.status);
     console.log('📋 응답 내용:', response.data);
 
-    client.publish(topic, `relay_response=${encodeURIComponent(JSON.stringify(response.data))}`);
+    client.publish(topic, `relay_response=${JSON.stringify(response.data)}`);
   } catch (error) {
     console.error('❌ messageme 전송 실패:', error.message);
     if (error.response) {
       console.error('📋 오류 코드:', error.response.status);
       console.error('📋 오류 내용:', error.response.data);
-      client.publish(topic, 'relay_response=' + encodeURIComponent(JSON.stringify({ result: '1000' })));
+      client.publish(topic, 'relay_response=' + JSON.stringify({ result: '1000' }));
     } else {
       console.error('📋 messageme 응답 없음 또는 타임아웃');
-      client.publish(topic, 'relay_response=' + encodeURIComponent(JSON.stringify({ result: '2000' })));
+      client.publish(topic, 'relay_response=' + JSON.stringify({ result: '2000' }));
     }
   }
 });
