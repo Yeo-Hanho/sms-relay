@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 10000;
 const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
 
-let isProcessing = false;
+const processedMessages = new Set();
 
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
@@ -22,14 +22,14 @@ client.on('connect', () => {
 });
 
 client.on('message', async (topic, message) => {
-  if (isProcessing) {
-    console.log('⚠️ 이전 요청 처리 중, 새 메시지 무시');
-    return;
-  }
-  isProcessing = true;
-
   const payload = message.toString();
   console.log('📨 수신된 메시지:', payload);
+
+  if (processedMessages.has(payload)) {
+    console.log('⚠️ 이미 처리된 메시지, 무시됨');
+    return;
+  }
+  processedMessages.add(payload);
 
   const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
   console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
@@ -68,8 +68,6 @@ client.on('message', async (topic, message) => {
       console.log('📤 아두이노로 전달할 타임아웃 응답:', timeoutResponse);
       client.publish(topic, 'relay_response=' + timeoutResponse);
     }
-  } finally {
-    isProcessing = false;
   }
 });
 
@@ -80,5 +78,6 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
 
 
