@@ -9,6 +9,7 @@ const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
 
 let lastProcessedMessage = null;
+let isProcessing = false;
 
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
@@ -22,11 +23,15 @@ client.on('connect', () => {
 });
 
 client.on('message', async (topic, message) => {
+  if (isProcessing) return;
+  isProcessing = true;
+
   const payload = message.toString();
   console.log('📨 수신된 메시지:', payload);
 
   if (payload === lastProcessedMessage) {
     console.log('⚠️ 동일 메시지 반복 수신: 메시지 처리 생략 후 대기');
+    isProcessing = false;
     return;
   }
   lastProcessedMessage = payload;
@@ -68,6 +73,7 @@ client.on('message', async (topic, message) => {
 
   console.log('📤 아두이노로 전달할 응답:', responsePayload);
   client.publish(topic, `relay_response=${responsePayload}`);
+  isProcessing = false;
 });
 
 app.get('/', (req, res) => {
