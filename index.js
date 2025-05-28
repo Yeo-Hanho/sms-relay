@@ -1,6 +1,7 @@
 const mqtt = require('mqtt');
 const express = require('express');
 const axios = require('axios');
+const querystring = require('querystring');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -8,8 +9,7 @@ const PORT = process.env.PORT || 10000;
 const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
 
-let isProcessing = false;
-let lastProcessedMessage = '';
+let hasProcessedMessage = false; // 메시지 처리 여부 플래그
 
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
@@ -23,63 +23,53 @@ client.on('connect', () => {
 });
 
 client.on('message', async (topic, message) => {
+  if (hasProcessedMessage) return; // 이미 처리한 경우 무시
+  hasProcessedMessage = true;
+
   const payload = message.toString();
-
-  if (payload.startsWith('relay_response=')) {
-    console.log('🔁 회신 메시지는 무시');
-    return;
-  }
-
-  if (isProcessing) {
-    console.log('⚠️ 처리 중: 메시지 처리 생략');
-    return;
-  }
-
-  isProcessing = true;
-  lastProcessedMessage = payload;
   console.log('📨 수신된 메시지:', payload);
+
+  const parsed = querystring.parse(payload);
+  const formattedPayload = querystring.stringify(parsed);
 
   const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
   console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
-  console.log('🚀 messageme로 전송할 데이터 본문:', payload);
-
-  let responsePayload;
-  let messagemeResponded = false;
+  console.log('🚀 messageme로 전송할 데이터 본문:', formattedPayload);
 
   try {
-    const response = await Promise.race([
-      axios.post(targetUrl, payload, {
+    const response = await axios.post(
+      targetUrl,
+      formattedPayload,
+      {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         timeout: 8000,
-      }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('response-timeout')), 3000))
-    ]);
+      }
+    );
 
     console.log('✅ messageme 응답 수신 성공');
     console.log('📋 상태 코드:', response.status);
     console.log('📋 응답 내용:', response.data);
 
-    messagemeResponded = true;
-    responsePayload = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data;
+    const responseString = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data;
+    console.log('📤 아두이노로 전달할 응답:', responseString);
+    client.publish(topic, `relay_response=${responseString}`);
   } catch (error) {
     console.error('❌ messageme 전송 실패:', error.message);
-    if (error.message === 'response-timeout') {
-      console.error('📋 messageme 응답 대기 시간 초과');
-    } else if (error.response) {
+    if (error.response) {
       console.error('📋 오류 코드:', error.response.status);
       console.error('📋 오류 내용:', error.response.data);
+      const failResponse = JSON.stringify({ result: '1000' });
+      console.log('📤 아두이노로 전달할 실패 응답:', failResponse);
+      client.publish(topic, 'relay_response=' + failResponse);
     } else {
       console.error('📋 messageme 응답 없음 또는 타임아웃');
+      const timeoutResponse = JSON.stringify({ result: '2000' });
+      console.log('📤 아두이노로 전달할 타임아웃 응답:', timeoutResponse);
+      client.publish(topic, 'relay_response=' + timeoutResponse);
     }
-    responsePayload = JSON.stringify({ result: '1000' });
   }
-
-  console.log('📤 아두이노로 전달할 응답:', responsePayload);
-  client.publish(topic, `relay_response=${responsePayload}`);
-
-  isProcessing = false;
 });
 
 app.get('/', (req, res) => {
@@ -89,7 +79,6 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
-
 
 
 
