@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 10000;
 const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
 
-const processedMessages = new Set();
+let lastProcessedMessage = null;
 
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
@@ -25,11 +25,11 @@ client.on('message', async (topic, message) => {
   const payload = message.toString();
   console.log('📨 수신된 메시지:', payload);
 
-  if (processedMessages.has(payload)) {
-    console.log('⚠️ 이미 처리된 메시지, 무시됨');
+  if (payload === lastProcessedMessage) {
+    console.log('⚠️ 동일 메시지 반복 수신: 메시지 처리 생략 후 대기');
     return;
   }
-  processedMessages.add(payload);
+  lastProcessedMessage = payload;
 
   const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
   console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
