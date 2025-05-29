@@ -1,7 +1,7 @@
 const mqtt = require('mqtt');
 const express = require('express');
 const axios = require('axios');
-const qs = require('querystring');
+const querystring = require('querystring');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -9,7 +9,9 @@ const PORT = process.env.PORT || 10000;
 const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
 
-let lastProcessedMessage = ''; // 최근 처리된 메시지 저장 (현재는 사용하지 않음)
+let chunkBuffer = [];
+let expectedChunks = 0;
+let receivedChunks = 0;
 
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
@@ -23,58 +25,69 @@ client.on('connect', () => {
 });
 
 client.on('message', async (topic, message) => {
-  const rawPayload = message.toString();
-  const cleanedPayload = rawPayload.trim(); // ✅ 1. 메시지 앞뒤 공백 제거
+  const payload = message.toString().trim();
+  if (payload.startsWith('relay_response=')) return; // [1] 회신 메시지는 무시
 
-  // 회신 메시지는 무시
-  if (cleanedPayload.startsWith('relay_response=')) return;
+  console.log('📨 수신된 메시지:', payload);
 
-  // 항상 처리하고 삭제하므로 중복 체크는 사용하지 않음
-  console.log('📨 수신된 메시지:', cleanedPayload);
+  const parsed = querystring.parse(payload);
+  if (parsed.chunk && parsed.data) {
+    const chunkIndex = parseInt(parsed.chunk);
+    chunkBuffer[chunkIndex - 1] = parsed.data;
+    receivedChunks++;
 
-  const parsed = qs.parse(cleanedPayload);
-  const formattedPayload = qs.stringify(parsed);
+    // [6] 첫 조각에서 총 개수 추정
+    if (chunkIndex === 1 && parsed.total) {
+      expectedChunks = parseInt(parsed.total);
+    }
 
-  const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
-  console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
-  console.log('🚀 messageme로 전송할 데이터 본문:', formattedPayload);
+    if (expectedChunks && receivedChunks >= expectedChunks) {
+      // [12] 모든 조각 수신 완료 → 조립 후 전송
+      const fullMessage = chunkBuffer.join('');
+      console.log('📦 전체 조립 메시지:', fullMessage);
 
-  try {
-    const response = await axios.post(
-      targetUrl,
-      formattedPayload,
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        timeout: 8000,
+      // [10] messageme에 보낼 때 api_key 앞부분 제거
+      const idx = fullMessage.indexOf('api_key=');
+      const messageBody = idx >= 0 ? fullMessage.substring(idx) : fullMessage;
+
+      const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
+      console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
+      console.log('🚀 messageme로 전송할 데이터 본문:', messageBody);
+
+      let responseText = '';
+      try {
+        const response = await axios.post(
+          targetUrl,
+          messageBody,
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            timeout: 3000,
+          }
+        );
+
+        responseText = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data;
+        console.log('✅ messageme 응답 수신 성공');
+        console.log('📋 상태 코드:', response.status);
+        console.log('📋 응답 내용:', responseText);
+      } catch (error) {
+        console.error('❌ messageme 전송 실패:', error.message);
+        responseText = JSON.stringify({ result: '1100' }); // [4] 실패 시 1100 응답
       }
-    );
 
-    console.log('✅ messageme 응답 수신 성공');
-    console.log('📋 상태 코드:', response.status);
-    console.log('📋 응답 내용:', response.data);
+      // [5][23] messageme 응답을 아두이노로 전달
+      client.publish(topic, `relay_response=${responseText}`);
 
-    const responseString = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data;
-    console.log('📤 아두이노로 전달할 응답:', responseString);
-    client.publish(topic, `relay_response=${responseString}`);
-  } catch (error) {
-    console.error('❌ messageme 전송 실패:', error.message);
-    if (error.response) {
-      console.error('📋 오류 코드:', error.response.status);
-      console.error('📋 오류 내용:', error.response.data);
-      const failResponse = JSON.stringify({ result: '1100' });
-      console.log('📤 아두이노로 전달할 실패 응답:', failResponse);
-      client.publish(topic, 'relay_response=' + failResponse);
-    } else {
-      console.error('📋 messageme 응답 없음 또는 타임아웃');
-      const timeoutResponse = JSON.stringify({ result: '2000' });
-      console.log('📤 아두이노로 전달할 타임아웃 응답:', timeoutResponse);
-      client.publish(topic, 'relay_response=' + timeoutResponse);
+      // [2][6] 조각 관련 변수 초기화 (전송 후 삭제)
+      chunkBuffer = [];
+      expectedChunks = 0;
+      receivedChunks = 0;
+
+      // [9] 전송 후 항상 대기 상태로 전환
+      console.log('🕓 대기 중...');
     }
   }
-
-  console.log('🕓 대기 상태 진입 중...');
 });
 
 app.get('/', (req, res) => {
