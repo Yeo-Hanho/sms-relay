@@ -24,11 +24,15 @@ client.on('connect', () => {
 
 client.on('message', async (topic, message) => {
   const payload = message.toString().trim();
-  if (payload.startsWith('relay_response=')) return; // [1] 회신 메시지는 무시
+
+  // [1] 회신 메시지는 무시
+  if (payload.startsWith('relay_response=')) return;
 
   console.log('📨 수신된 메시지:', payload);
 
   const parsed = querystring.parse(payload);
+
+  // [12] 아두이노 조각 메시지 수신 처리
   if (parsed.chunk && parsed.data) {
     const chunkIndex = parseInt(parsed.chunk);
     if (!chunkBuffer[chunkIndex - 1]) {
@@ -37,7 +41,6 @@ client.on('message', async (topic, message) => {
 
     console.log(`📦 조각 수신: #${chunkIndex}`);
 
-    // [12] 모든 조각 수신 여부 확인 (chunkBuffer 채워짐 여부)
     const allChunksReceived = chunkBuffer.length >= 3 && chunkBuffer.every(Boolean);
     if (allChunksReceived) {
       const fullMessage = chunkBuffer.join('');
@@ -82,8 +85,10 @@ client.on('message', async (topic, message) => {
       // [9] 전송 후 항상 대기 상태로 전환
       console.log('🕓 대기 중...');
     }
-  } else if (payload.includes('api_key=')) {
-    // [NEW] MQTT Explorer에서 단일 메시지 수신 처리
+  }
+
+  // [11] MQTT Explorer에서 단일 메시지 수신 처리
+  else if (payload.includes('api_key=')) {
     const idx = payload.indexOf('api_key=');
     const messageBody = idx >= 0 ? payload.substring(idx) : payload;
 
