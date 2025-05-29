@@ -10,8 +10,6 @@ const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
 
 let chunkBuffer = [];
-let expectedChunks = 0;
-let receivedChunks = 0;
 
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
@@ -33,16 +31,15 @@ client.on('message', async (topic, message) => {
   const parsed = querystring.parse(payload);
   if (parsed.chunk && parsed.data) {
     const chunkIndex = parseInt(parsed.chunk);
-    chunkBuffer[chunkIndex - 1] = parsed.data;
-    receivedChunks++;
-
-    // [6] 첫 조각에서 총 개수 추정
-    if (chunkIndex === 1 && parsed.total) {
-      expectedChunks = parseInt(parsed.total);
+    if (!chunkBuffer[chunkIndex - 1]) {
+      chunkBuffer[chunkIndex - 1] = parsed.data;
     }
 
-    if (expectedChunks && receivedChunks >= expectedChunks) {
-      // [12] 모든 조각 수신 완료 → 조립 후 전송
+    console.log(`📦 조각 수신: #${chunkIndex}`);
+
+    // [12] 모든 조각 수신 여부 확인 (chunkBuffer 채워짐 여부)
+    const allChunksReceived = chunkBuffer.length >= 3 && chunkBuffer.every(Boolean);
+    if (allChunksReceived) {
       const fullMessage = chunkBuffer.join('');
       console.log('📦 전체 조립 메시지:', fullMessage);
 
@@ -81,8 +78,6 @@ client.on('message', async (topic, message) => {
 
       // [2][6] 조각 관련 변수 초기화 (전송 후 삭제)
       chunkBuffer = [];
-      expectedChunks = 0;
-      receivedChunks = 0;
 
       // [9] 전송 후 항상 대기 상태로 전환
       console.log('🕓 대기 중...');
@@ -130,7 +125,6 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
-
 
 
 
