@@ -1,13 +1,15 @@
 const mqtt = require('mqtt');
 const express = require('express');
 const axios = require('axios');
-const qs = require('querystring');
+const querystring = require('querystring');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
+
+let lastMessage = '';
 
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
@@ -21,25 +23,38 @@ client.on('connect', () => {
 });
 
 client.on('message', async (topic, message) => {
-  const rawPayload = message.toString();
-  const cleanedPayload = rawPayload.trim();
-  console.log('📨 수신된 메시지:', cleanedPayload);
+  const payload = message.toString();
+
+  // 회신 메시지는 무시
+  if (payload.startsWith('relay_response=')) return;
+
+  console.log('📨 수신된 메시지:', payload);
+
+  // 항상 처리하고 지우기 위해 중복 검사 제거
+  lastMessage = ''; // 무조건 지우기
+
+  const parsed = querystring.parse(payload);
+  const formattedPayload = querystring.stringify(parsed);
 
   const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
   console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
-  console.log('🚀 messageme로 전송할 데이터 본문:', cleanedPayload);
+  console.log('🚀 messageme로 전송할 데이터 본문:', formattedPayload);
+
+  let responded = false;
 
   try {
     const response = await axios.post(
       targetUrl,
-      cleanedPayload,
+      formattedPayload,
       {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        timeout: 8000,
+        timeout: 3000,
       }
     );
+
+    responded = true;
 
     console.log('✅ messageme 응답 수신 성공');
     console.log('📋 상태 코드:', response.status);
@@ -58,13 +73,11 @@ client.on('message', async (topic, message) => {
       client.publish(topic, 'relay_response=' + failResponse);
     } else {
       console.error('📋 messageme 응답 없음 또는 타임아웃');
-      const timeoutResponse = JSON.stringify({ result: '2000' });
+      const timeoutResponse = JSON.stringify({ result: '1100' });
       console.log('📤 아두이노로 전달할 타임아웃 응답:', timeoutResponse);
       client.publish(topic, 'relay_response=' + timeoutResponse);
     }
   }
-
-  console.log('🕓 대기 상태 진입 중...');
 });
 
 app.get('/', (req, res) => {
@@ -74,6 +87,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
 
 
 
