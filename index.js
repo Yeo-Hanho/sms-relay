@@ -87,6 +87,39 @@ client.on('message', async (topic, message) => {
       // [9] 전송 후 항상 대기 상태로 전환
       console.log('🕓 대기 중...');
     }
+  } else if (payload.includes('api_key=')) {
+    // [NEW] MQTT Explorer에서 단일 메시지 수신 처리
+    const idx = payload.indexOf('api_key=');
+    const messageBody = idx >= 0 ? payload.substring(idx) : payload;
+
+    const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
+    console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
+    console.log('🚀 messageme로 전송할 데이터 본문:', messageBody);
+
+    let responseText = '';
+    try {
+      const response = await axios.post(
+        targetUrl,
+        messageBody,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          timeout: 3000,
+        }
+      );
+
+      responseText = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data;
+      console.log('✅ messageme 응답 수신 성공');
+      console.log('📋 상태 코드:', response.status);
+      console.log('📋 응답 내용:', responseText);
+    } catch (error) {
+      console.error('❌ messageme 전송 실패:', error.message);
+      responseText = JSON.stringify({ result: '1100' });
+    }
+
+    client.publish(topic, `relay_response=${responseText}`);
+    console.log('🕓 대기 중...');
   }
 });
 
