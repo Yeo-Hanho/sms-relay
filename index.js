@@ -53,7 +53,7 @@ client.on('message', async (topic, message) => {
         timer: setTimeout(() => {
           console.warn(`⏰ 메시지 ID ${msgId} 타임아웃 발생, 버퍼 삭제`);
           chunkBuffers.delete(msgId);
-        }, 20000),  // ✅ timeout 20초로 연장
+        }, 30000),  // timeout 연장
       });
     }
 
@@ -81,19 +81,23 @@ client.on('message', async (topic, message) => {
       console.log("📦 전체 메시지 조립 완료:");
       console.log("📋 조립 메시지 내용:", fullMessage);
 
-      const idx = fullMessage.indexOf('api_key=');
-      const messageBody = idx >= 0 ? fullMessage.substring(idx) : fullMessage;
+      let parsedMessage = querystring.parse(fullMessage);
 
-      let rebuiltMessage = messageBody;
-      const msgKeyIdx = messageBody.indexOf('msg=');
-      if (msgKeyIdx >= 0) {
-        const msgStart = msgKeyIdx + 4;
-        const msgEndIdx = messageBody.indexOf('&', msgStart);
-        const msgEnd = msgEndIdx !== -1 ? msgEndIdx : messageBody.length;
-        const msgValue = messageBody.substring(msgStart, msgEnd);
-        const encodedMsgValue = encodeURIComponent(msgValue);
-        rebuiltMessage = messageBody.substring(0, msgStart) + encodedMsgValue + messageBody.substring(msgEnd);
+      // [msg_part1, msg_part2 병합]
+      if (parsedMessage.msg_part1 && parsedMessage.msg_part2) {
+        parsedMessage.msg = parsedMessage.msg_part1 + parsedMessage.msg_part2;
+        delete parsedMessage.msg_part1;
+        delete parsedMessage.msg_part2;
       }
+
+      // [dstaddr_part1, dstaddr_part2 병합]
+      if (parsedMessage.dstaddr_part1 && parsedMessage.dstaddr_part2) {
+        parsedMessage.dstaddr = parsedMessage.dstaddr_part1 + parsedMessage.dstaddr_part2;
+        delete parsedMessage.dstaddr_part1;
+        delete parsedMessage.dstaddr_part2;
+      }
+
+      const rebuiltMessage = querystring.stringify(parsedMessage);
 
       const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
       console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
@@ -134,6 +138,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
 
 
 
