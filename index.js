@@ -1,4 +1,5 @@
-// [모듈 임포트 및 초기 설정]
+// index.js 전체 코드 업데이트 버전입니다.
+
 const mqtt = require('mqtt');
 const express = require('express');
 const axios = require('axios');
@@ -7,16 +8,13 @@ const querystring = require('querystring');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// [MQTT 브로커 연결 및 토픽 설정]
 const client = mqtt.connect('mqtt://broker.hivemq.com', {
   clientId: 'mqtt_server_' + Math.random().toString(16).substr(2, 8),
 });
 const topic = 'type1sc/test/pub';
 
-// [메시지 조각 저장용 버퍼 초기화 - 최대 100개]
 let chunkBuffer = new Array(100).fill(undefined);
 
-// [MQTT 연결 성공 시 토픽 구독 시작]
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
   client.subscribe(topic, (err, granted) => {
@@ -29,12 +27,10 @@ client.on('connect', () => {
   });
 });
 
-// [MQTT 메시지 수신 처리 - 조각 메시지 처리 및 메시지 조립 후 전송]
 client.on('message', async (topic, message) => {
   const payload = message.toString().trim();
   console.log('📨 수신된 메시지:', payload);
 
-  // [회신 메시지는 무시]
   if (payload.startsWith('relay_response=')) return;
 
   const parsed = querystring.parse(payload);
@@ -78,7 +74,8 @@ client.on('message', async (topic, message) => {
         return;
       }
 
-      const fullMessage = chunkBuffer.join('');
+      const encodedMessage = chunkBuffer.join('');
+      const fullMessage = decodeURIComponent(encodedMessage);
       chunkBuffer = new Array(100).fill(undefined);
 
       console.log("📦 전체 메시지 조립 완료:");
@@ -123,7 +120,6 @@ client.on('message', async (topic, message) => {
     }
   }
 
-  // [MQTT Explorer 등을 통한 단일 메시지 직접 전송 처리]
   else if (payload.includes('api_key=')) {
     const idx = payload.indexOf('api_key=');
     const messageBody = idx >= 0 ? payload.substring(idx) : payload;
@@ -159,16 +155,13 @@ client.on('message', async (topic, message) => {
   }
 });
 
-// [HTTP 상태 확인용 기본 라우터]
 app.get('/', (req, res) => {
   res.send('✅ MQTT relay server is running.');
 });
 
-// [서버 시작]
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
-
 
 
 
