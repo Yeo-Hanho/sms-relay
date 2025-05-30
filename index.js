@@ -54,12 +54,18 @@ client.on('message', async (topic, message) => {
 
     if (chunkIndex === 'EOF') {
       console.log("🧩 조립 전 chunkBuffer 상태:");
+      let receivedChunks = 0;
       chunkBuffer.forEach((v, i) => {
-        console.log(`chunk[${i + 1}] = ${v ? 'OK' : 'MISSING'}`);
+        if (v !== undefined) {
+          console.log(`chunk[${i + 1}] = OK`);
+          receivedChunks++;
+        } else {
+          console.log(`chunk[${i + 1}] = MISSING`);
+        }
       });
 
-      if (chunkBuffer.every((v) => v === undefined)) {
-        console.warn("⚠️ 조각이 전혀 수신되지 않음");
+      if (receivedChunks === 0) {
+        console.warn("⚠️ 유효한 조각이 전혀 없음. 조립 생략");
         return;
       }
 
@@ -76,7 +82,7 @@ client.on('message', async (topic, message) => {
       chunkBuffer = new Array(100).fill(undefined);
 
       console.log("📦 전체 메시지 조립 완료:");
-      console.log(fullMessage); // ✅ 조립된 전체 메시지 로그 출력
+      console.log("📋 조립 메시지 내용:", fullMessage);
       console.log("🔍 메시지 길이:", fullMessage.length);
 
       if (!fullMessage.includes("api_key=")) {
@@ -162,6 +168,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
 
 
 
