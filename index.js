@@ -77,7 +77,8 @@ client.on('message', async (topic, message) => {
         messageChunks.push(buffer.receivedChunks[i]);
       }
 
-      const fullMessage = messageChunks.join('');
+      // ✅ 파라미터 단위로 조립 후 '&'로 이어붙임
+      const fullMessage = messageChunks.join('&');
       console.log("📦 전체 메시지 조립 완료:");
       console.log("📋 조립 메시지 내용:", fullMessage);
 
@@ -85,9 +86,9 @@ client.on('message', async (topic, message) => {
       const messageBody = idx >= 0 ? fullMessage.substring(idx) : fullMessage;
 
       let rebuiltMessage = messageBody;
-      const msgKeyIdx = messageBody.indexOf('&msg=');
+      const msgKeyIdx = messageBody.indexOf('msg=');
       if (msgKeyIdx >= 0) {
-        const msgStart = msgKeyIdx + 5;
+        const msgStart = msgKeyIdx + 4;
         const msgEndIdx = messageBody.indexOf('&', msgStart);
         const msgEnd = msgEndIdx !== -1 ? msgEndIdx : messageBody.length;
         const msgValue = messageBody.substring(msgStart, msgEnd);
