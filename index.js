@@ -53,7 +53,7 @@ client.on('message', async (topic, message) => {
         timer: setTimeout(() => {
           console.warn(`⏰ 메시지 ID ${msgId} 타임아웃 발생, 버퍼 삭제`);
           chunkBuffers.delete(msgId);
-        }, 10000),
+        }, 20000),  // ✅ timeout 20초로 연장
       });
     }
 
@@ -77,7 +77,6 @@ client.on('message', async (topic, message) => {
         messageChunks.push(buffer.receivedChunks[i]);
       }
 
-      // ✅ 파라미터 단위로 조립 후 '&'로 이어붙임
       const fullMessage = messageChunks.join('&');
       console.log("📦 전체 메시지 조립 완료:");
       console.log("📋 조립 메시지 내용:", fullMessage);
