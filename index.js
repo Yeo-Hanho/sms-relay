@@ -9,8 +9,10 @@ const PORT = process.env.PORT || 10000;
 const client = mqtt.connect('mqtt://broker.hivemq.com');
 const topic = 'type1sc/test/pub';
 
+// [1] 메시지 조각 저장용 버퍼
 let chunkBuffer = [];
 
+// [2] MQTT 연결 완료 및 토픽 구독
 client.on('connect', () => {
   console.log('✅ MQTT 연결 완료');
   client.subscribe(topic, (err) => {
@@ -22,31 +24,33 @@ client.on('connect', () => {
   });
 });
 
+// [3] MQTT 메시지 수신 처리
 client.on('message', async (topic, message) => {
   const payload = message.toString().trim();
 
-  // [1] 회신 메시지는 무시
+  // [4] 회신 메시지는 무시
   if (payload.startsWith('relay_response=')) return;
 
   console.log('📨 수신된 메시지:', payload);
 
   const parsed = querystring.parse(payload);
 
-  // [12] 아두이노 조각 메시지 수신 처리
-  if (parsed.chunk && parsed.data) {
-    const chunkIndex = parseInt(parsed.chunk);
-    if (!chunkBuffer[chunkIndex - 1]) {
-      chunkBuffer[chunkIndex - 1] = parsed.data;
+  // [5] 조각 메시지 수신
+  if (parsed.chunk && parsed.data !== undefined) {
+    const chunkIndex = parsed.chunk;
+
+    if (chunkIndex !== 'EOF') {
+      const index = parseInt(chunkIndex);
+      chunkBuffer[index - 1] = parsed.data;
+      console.log(`📦 조각 수신: #${index}`);
     }
 
-    console.log(`📦 조각 수신: #${chunkIndex}`);
-
-    const allChunksReceived = chunkBuffer.length >= 3 && chunkBuffer.every(Boolean);
-    if (allChunksReceived) {
+    // [6] 전송 종료 신호 수신 시 처리
+    if (chunkIndex === 'EOF') {
       const fullMessage = chunkBuffer.join('');
-      console.log('📦 전체 조립 메시지:', fullMessage);
+      chunkBuffer = []; // 초기화
 
-      // [10] messageme에 보낼 때 api_key 앞부분 제거
+      // [7] messageme에 보낼 때 api_key 앞부분 제거
       const idx = fullMessage.indexOf('api_key=');
       const messageBody = idx >= 0 ? fullMessage.substring(idx) : fullMessage;
 
@@ -54,6 +58,7 @@ client.on('message', async (topic, message) => {
       console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
       console.log('🚀 messageme로 전송할 데이터 본문:', messageBody);
 
+      // [8] messageme 전송
       let responseText = '';
       try {
         const response = await axios.post(
@@ -73,21 +78,18 @@ client.on('message', async (topic, message) => {
         console.log('📋 응답 내용:', responseText);
       } catch (error) {
         console.error('❌ messageme 전송 실패:', error.message);
-        responseText = JSON.stringify({ result: '1100' }); // [4] 실패 시 1100 응답
+        responseText = JSON.stringify({ result: '1100' });
       }
 
-      // [5][23] messageme 응답을 아두이노로 전달
-      client.publish(topic, `relay_response=${responseText}`);
+      // [9] messageme 응답을 그대로 아두이노로 전달
+      client.publish(topic, responseText);
 
-      // [2][6] 조각 관련 변수 초기화 (전송 후 삭제)
-      chunkBuffer = [];
-
-      // [9] 전송 후 항상 대기 상태로 전환
+      // [10] 전송 후 대기 상태 진입
       console.log('🕓 대기 중...');
     }
   }
 
-  // [11] MQTT Explorer에서 단일 메시지 수신 처리
+  // [11] MQTT Explorer에서 직접 전송한 메시지 처리
   else if (payload.includes('api_key=')) {
     const idx = payload.indexOf('api_key=');
     const messageBody = idx >= 0 ? payload.substring(idx) : payload;
@@ -118,11 +120,13 @@ client.on('message', async (topic, message) => {
       responseText = JSON.stringify({ result: '1100' });
     }
 
-    client.publish(topic, `relay_response=${responseText}`);
+    // [12] 응답 전달
+    client.publish(topic, responseText);
     console.log('🕓 대기 중...');
   }
 });
 
+// [13] HTTP 서버 시작
 app.get('/', (req, res) => {
   res.send('✅ MQTT relay server is running.');
 });
@@ -130,6 +134,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
 
 
 
