@@ -81,8 +81,7 @@ client.on('message', async (topic, message) => {
       }
 
       const encodedMessage = messageChunks.join('');
-      // const fullMessage = decodeURIComponent(encodedMessage);  // ❌ 전체 URL 디코딩 제거
-      const fullMessage = encodedMessage;  // ✅ 그대로 전송
+      const fullMessage = encodedMessage;  // ✅ decodeURIComponent 제거
 
       console.log("📦 전체 메시지 조립 완료:");
       console.log("📋 조립 메시지 내용:", fullMessage);
@@ -96,16 +95,29 @@ client.on('message', async (topic, message) => {
       // [messageme 전송 준비]
       const idx = fullMessage.indexOf('api_key=');
       const messageBody = idx >= 0 ? fullMessage.substring(idx) : fullMessage;
+
+      // ✅ msg= 값만 URL 인코딩 추가
+      let rebuiltMessage = messageBody;
+      const msgKeyIdx = messageBody.indexOf('&msg=');
+      if (msgKeyIdx >= 0) {
+        const msgStart = msgKeyIdx + 5;
+        const msgEndIdx = messageBody.indexOf('&', msgStart);
+        const msgEnd = msgEndIdx !== -1 ? msgEndIdx : messageBody.length;
+        const msgValue = messageBody.substring(msgStart, msgEnd);
+        const encodedMsgValue = encodeURIComponent(decodeURIComponent(msgValue));
+        rebuiltMessage = messageBody.substring(0, msgStart) + encodedMsgValue + messageBody.substring(msgEnd);
+      }
+
       const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
       console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
-      console.log('🚀 messageme로 전송할 데이터 본문:', messageBody);
+      console.log('🚀 messageme로 전송할 데이터 본문:', rebuiltMessage);
 
       // [messageme API 호출]
       let responseText = '';
       try {
         const response = await axios.post(
           targetUrl,
-          messageBody,
+          rebuiltMessage,
           {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             timeout: 3000,
@@ -131,7 +143,6 @@ client.on('message', async (topic, message) => {
 
   // [EOF 수신 시 메시지 조립 fallback 처리]
   else if (parsed.chunk === 'EOF') {
-    // ✅ msg_id 있으면 chunkBuffers Map으로 이미 처리됨, fallback chunkBuffer는 건너뜀
     if (parsed.msg_id) {
       console.log("📦 EOF 신호 수신 - msg_id 있음, chunkBuffers Map에서 이미 처리됨");
       return;
@@ -164,8 +175,7 @@ client.on('message', async (topic, message) => {
     }
 
     const encodedMessage = chunkBuffer.join('');
-    // const fullMessage = decodeURIComponent(encodedMessage);  // ❌ 전체 URL 디코딩 제거
-    const fullMessage = encodedMessage;  // ✅ 그대로 전송
+    const fullMessage = encodedMessage;  // ✅ decodeURIComponent 제거
 
     console.log("📦 전체 메시지 조립 완료:");
     console.log("📋 조립 메시지 내용:", fullMessage);
@@ -177,15 +187,27 @@ client.on('message', async (topic, message) => {
 
     const idx = fullMessage.indexOf('api_key=');
     const messageBody = idx >= 0 ? fullMessage.substring(idx) : fullMessage;
+
+    let rebuiltMessage = messageBody;
+    const msgKeyIdx = messageBody.indexOf('&msg=');
+    if (msgKeyIdx >= 0) {
+      const msgStart = msgKeyIdx + 5;
+      const msgEndIdx = messageBody.indexOf('&', msgStart);
+      const msgEnd = msgEndIdx !== -1 ? msgEndIdx : messageBody.length;
+      const msgValue = messageBody.substring(msgStart, msgEnd);
+      const encodedMsgValue = encodeURIComponent(decodeURIComponent(msgValue));
+      rebuiltMessage = messageBody.substring(0, msgStart) + encodedMsgValue + messageBody.substring(msgEnd);
+    }
+
     const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
     console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
-    console.log('🚀 messageme로 전송할 데이터 본문:', messageBody);
+    console.log('🚀 messageme로 전송할 데이터 본문:', rebuiltMessage);
 
     let responseText = '';
     try {
       const response = await axios.post(
         targetUrl,
-        messageBody,
+        rebuiltMessage,
         {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           timeout: 3000,
@@ -208,15 +230,27 @@ client.on('message', async (topic, message) => {
   else if (payload.includes('api_key=')) {
     const idx = payload.indexOf('api_key=');
     const messageBody = idx >= 0 ? payload.substring(idx) : payload;
+
+    let rebuiltMessage = messageBody;
+    const msgKeyIdx = messageBody.indexOf('&msg=');
+    if (msgKeyIdx >= 0) {
+      const msgStart = msgKeyIdx + 5;
+      const msgEndIdx = messageBody.indexOf('&', msgStart);
+      const msgEnd = msgEndIdx !== -1 ? msgEndIdx : messageBody.length;
+      const msgValue = messageBody.substring(msgStart, msgEnd);
+      const encodedMsgValue = encodeURIComponent(decodeURIComponent(msgValue));
+      rebuiltMessage = messageBody.substring(0, msgStart) + encodedMsgValue + messageBody.substring(msgEnd);
+    }
+
     const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
     console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
-    console.log('🚀 messageme로 전송할 데이터 본문:', messageBody);
+    console.log('🚀 messageme로 전송할 데이터 본문:', rebuiltMessage);
 
     let responseText = '';
     try {
       const response = await axios.post(
         targetUrl,
-        messageBody,
+        rebuiltMessage,
         {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           timeout: 3000,
