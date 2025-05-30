@@ -81,7 +81,8 @@ client.on('message', async (topic, message) => {
       }
 
       const encodedMessage = messageChunks.join('');
-      const fullMessage = decodeURIComponent(encodedMessage);
+      // const fullMessage = decodeURIComponent(encodedMessage);  // ❌ 전체 URL 디코딩 제거
+      const fullMessage = encodedMessage;  // ✅ 그대로 전송
 
       console.log("📦 전체 메시지 조립 완료:");
       console.log("📋 조립 메시지 내용:", fullMessage);
@@ -163,8 +164,8 @@ client.on('message', async (topic, message) => {
     }
 
     const encodedMessage = chunkBuffer.join('');
-    const fullMessage = decodeURIComponent(encodedMessage);
-    chunkBuffer = new Array(100).fill(undefined);
+    // const fullMessage = decodeURIComponent(encodedMessage);  // ❌ 전체 URL 디코딩 제거
+    const fullMessage = encodedMessage;  // ✅ 그대로 전송
 
     console.log("📦 전체 메시지 조립 완료:");
     console.log("📋 조립 메시지 내용:", fullMessage);
@@ -244,6 +245,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
 
 
 
