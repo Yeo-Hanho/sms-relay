@@ -83,9 +83,10 @@ client.on('message', async (topic, message) => {
 
       let parsedMessage = querystring.parse(fullMessage);
 
-      // [msg_part1, msg_part2 병합]
+      // [msg_part1, msg_part2 병합 및 URL-decode]
       if (parsedMessage.msg_part1 && parsedMessage.msg_part2) {
-        parsedMessage.msg = parsedMessage.msg_part1 + parsedMessage.msg_part2;
+        const encodedMsg = parsedMessage.msg_part1 + parsedMessage.msg_part2;
+        parsedMessage.msg = decodeURIComponent(encodedMsg);  // ✅ URL-decode로 UTF-8 복원
         delete parsedMessage.msg_part1;
         delete parsedMessage.msg_part2;
       }
@@ -138,6 +139,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
 
 
 
