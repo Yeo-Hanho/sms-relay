@@ -130,7 +130,13 @@ client.on('message', async (topic, message) => {
 
   // [EOF 수신 시 메시지 조립 fallback 처리]
   else if (parsed.chunk === 'EOF') {
-    console.log("📦 EOF 신호 수신");
+    // ✅ msg_id 있으면 chunkBuffers Map으로 이미 처리됨, fallback chunkBuffer는 건너뜀
+    if (parsed.msg_id) {
+      console.log("📦 EOF 신호 수신 - msg_id 있음, chunkBuffers Map에서 이미 처리됨");
+      return;
+    }
+
+    console.log("📦 EOF 신호 수신 (fallback)");
 
     let receivedChunks = 0;
     chunkBuffer.forEach((v, i) => {
@@ -238,6 +244,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
 
 
 
