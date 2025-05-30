@@ -15,7 +15,7 @@ const client = mqtt.connect('mqtt://broker.hivemq.com', {
 const topic = 'type1sc/test/pub';
 
 // [메시지 조각을 저장하는 버퍼]
-let chunkBuffers = new Map();
+const chunkBuffers = new Map();
 
 // [MQTT 연결 성공 시 토픽 구독]
 client.on('connect', () => {
@@ -39,42 +39,76 @@ client.on('message', async (topic, message) => {
 
   const parsed = querystring.parse(payload);
 
-  // [EOF 수신 시 메시지 조립]
-  if (payload.includes('chunk=EOF') || payload.includes('msg_id=EOF')) {
-    for (const [msgId, chunks] of chunkBuffers) {
-      if (!chunks || chunks.length === 0) continue;
-      console.log(`📦 전체 메시지 조립 완료:`);
+  // [조각 메시지 수신 시 처리 (msg_id 포함)]
+  if (parsed.msg_id && parsed.seq && parsed.total && parsed.data !== undefined) {
+    const msgId = parsed.msg_id;
+    const seq = parseInt(parsed.seq);
+    const total = parseInt(parsed.total);
 
-      // [조립]
-      let mergedParams = {};
-      chunks.forEach(chunk => {
-        const parts = chunk.split('=');
-        const key = parts[0];
-        const value = parts.slice(1).join('=');
-        if (key.startsWith('msg_part')) {
-          mergedParams.msg = (mergedParams.msg || '') + decodeURIComponent(value);
-        } else if (key.startsWith('dstaddr_part')) {
-          mergedParams.dstaddr = (mergedParams.dstaddr || '') + value;
-        } else {
-          mergedParams[key] = value;
-        }
+    if (!chunkBuffers.has(msgId)) {
+      chunkBuffers.set(msgId, {
+        total: total,
+        receivedChunks: {},
+        receivedCount: 0,
+        timer: setTimeout(() => {
+          console.warn(`⏰ 메시지 ID ${msgId} 타임아웃 발생, 버퍼 삭제`);
+          chunkBuffers.delete(msgId);
+        }, 30000),  // timeout 연장
       });
+    }
 
-      // [querystring.stringify로 전체 메시지 구성]
-      const fullMessage = querystring.stringify(mergedParams);
+    const buffer = chunkBuffers.get(msgId);
+    if (!buffer.receivedChunks[seq]) {
+      buffer.receivedChunks[seq] = parsed.data;
+      buffer.receivedCount++;
+      console.log(`📦 메시지 ID ${msgId} - chunk #${seq} 수신`);
+    }
+
+    if (buffer.receivedCount === buffer.total) {
+      clearTimeout(buffer.timer);
+
+      const messageChunks = [];
+      for (let i = 1; i <= buffer.total; i++) {
+        if (!buffer.receivedChunks[i]) {
+          console.error(`❌ 메시지 ID ${msgId} - 누락된 chunk #${i}`);
+          chunkBuffers.delete(msgId);
+          return;
+        }
+        messageChunks.push(buffer.receivedChunks[i]);
+      }
+
+      const fullMessage = messageChunks.join('&');
+      console.log("📦 전체 메시지 조립 완료:");
       console.log("📋 조립 메시지 내용:", fullMessage);
-      console.log("🔍 메시지 길이:", fullMessage.length);
 
-      // [messageme API 호출]
+      let parsedMessage = querystring.parse(fullMessage);
+
+      // [msg_part1, msg_part2 병합 및 URL-decode]
+      if (parsedMessage.msg_part1 && parsedMessage.msg_part2) {
+        const encodedMsg = parsedMessage.msg_part1 + parsedMessage.msg_part2;
+        parsedMessage.msg = decodeURIComponent(encodedMsg);  // ✅ URL-decode로 UTF-8 복원
+        delete parsedMessage.msg_part1;
+        delete parsedMessage.msg_part2;
+      }
+
+      // [dstaddr_part1, dstaddr_part2 병합]
+      if (parsedMessage.dstaddr_part1 && parsedMessage.dstaddr_part2) {
+        parsedMessage.dstaddr = parsedMessage.dstaddr_part1 + parsedMessage.dstaddr_part2;
+        delete parsedMessage.dstaddr_part1;
+        delete parsedMessage.dstaddr_part2;
+      }
+
+      const rebuiltMessage = querystring.stringify(parsedMessage);
+
       const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
       console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
-      console.log('🚀 messageme로 전송할 데이터 본문:', fullMessage);
+      console.log('🚀 messageme로 전송할 데이터 본문:', rebuiltMessage);
 
       let responseText = '';
       try {
         const response = await axios.post(
           targetUrl,
-          fullMessage,
+          rebuiltMessage,
           {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             timeout: 3000,
@@ -91,20 +125,8 @@ client.on('message', async (topic, message) => {
 
       client.publish(topic, `relay_response=${responseText}`);
       console.log('📤 MQTT 회신 메시지 전송 완료');
+      chunkBuffers.delete(msgId);
     }
-
-    chunkBuffers.clear();
-    return;
-  }
-
-  // [메시지 ID 및 chunk index 수신]
-  const msgId = parsed.msg_id;
-  const chunkData = payload;
-
-  if (msgId) {
-    if (!chunkBuffers.has(msgId)) chunkBuffers.set(msgId, []);
-    chunkBuffers.get(msgId).push(chunkData);
-    console.log(`📦 메시지 ID ${msgId} - chunk #${parsed.seq} 수신`);
   }
 });
 
