@@ -58,6 +58,12 @@ client.on('message', async (topic, message) => {
 
     // [EOF 수신 시 전체 메시지 조립 시작]
     if (chunkIndex === 'EOF') {
+      // 💡 조립 상태 디버깅
+      console.log("🧩 조립 전 chunkBuffer 상태:");
+      chunkBuffer.forEach((v, i) => {
+        console.log(`chunk[${i + 1}] = ${v ? 'OK' : 'MISSING'}`);
+      });
+
       if (chunkBuffer.length === 0 || chunkBuffer.includes(undefined)) {
         console.error('❌ 메시지 조각 누락 또는 순서 오류');
         chunkBuffer.forEach((v, i) => {
@@ -169,7 +175,6 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
-
 
 
 
