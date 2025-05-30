@@ -1,4 +1,4 @@
-/ [모듈 임포트 및 초기 설정]
+// [모듈 임포트 및 초기 설정]
 const mqtt = require('mqtt');
 const express = require('express');
 const axios = require('axios');
