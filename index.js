@@ -80,12 +80,10 @@ client.on('message', async (topic, message) => {
       const fullMessage = messageChunks.join('');
       console.log("📦 전체 메시지 조립 완료:");
       console.log("📋 조립 메시지 내용:", fullMessage);
-      console.log("🔍 메시지 길이:", fullMessage.length);
 
       const idx = fullMessage.indexOf('api_key=');
       const messageBody = idx >= 0 ? fullMessage.substring(idx) : fullMessage;
 
-      // ✅ msg= 값만 URL 인코딩 추가
       let rebuiltMessage = messageBody;
       const msgKeyIdx = messageBody.indexOf('&msg=');
       if (msgKeyIdx >= 0) {
@@ -136,6 +134,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
 
 
 
