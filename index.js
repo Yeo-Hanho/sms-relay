@@ -1,4 +1,5 @@
 // [모듈 및 라이브러리 불러오기]
+// 수정일자: 2025-05-31 10:43 KST
 const mqtt = require('mqtt');
 const express = require('express');
 const axios = require('axios');
@@ -53,7 +54,7 @@ client.on('message', async (topic, message) => {
         timer: setTimeout(() => {
           console.warn(`⏰ 메시지 ID ${msgId} 타임아웃 발생, 버퍼 삭제`);
           chunkBuffers.delete(msgId);
-        }, 30000),  // timeout 연장
+        }, 30000),
       });
     }
 
@@ -83,10 +84,10 @@ client.on('message', async (topic, message) => {
 
       let parsedMessage = querystring.parse(fullMessage);
 
-      // [msg_part1, msg_part2 병합 및 URL-decode]
+      // [msg_part1, msg_part2 병합 및 URL-encode]
       if (parsedMessage.msg_part1 && parsedMessage.msg_part2) {
-        const encodedMsg = parsedMessage.msg_part1 + parsedMessage.msg_part2;
-        parsedMessage.msg = decodeURIComponent(encodedMsg);  // ✅ URL-decode로 UTF-8 복원
+        const rawMsg = parsedMessage.msg_part1 + parsedMessage.msg_part2;
+        parsedMessage.msg = encodeURIComponent(rawMsg);
         delete parsedMessage.msg_part1;
         delete parsedMessage.msg_part2;
       }
@@ -128,6 +129,41 @@ client.on('message', async (topic, message) => {
       chunkBuffers.delete(msgId);
     }
   }
+  // [단일 메시지 처리]
+  else if (parsed.api_key && parsed.msg && parsed.dstaddr) {
+    console.log("✅ 단일 메시지 수신");
+    console.log("📋 메시지 내용:", parsed);
+
+    parsed.msg = encodeURIComponent(parsed.msg);
+
+    const rebuiltMessage = querystring.stringify(parsed);
+
+    const targetUrl = 'http://www.messageme.co.kr/APIV2/API/sms_send';
+    console.log(`🚀 messageme로 전송할 전체 URL: ${targetUrl}`);
+    console.log('🚀 messageme로 전송할 데이터 본문:', rebuiltMessage);
+
+    let responseText = '';
+    try {
+      const response = await axios.post(
+        targetUrl,
+        rebuiltMessage,
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 3000,
+        }
+      );
+      responseText = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data;
+      console.log('✅ messageme 응답 수신 성공');
+      console.log('📋 상태 코드:', response.status);
+      console.log('📋 응답 내용:', responseText);
+    } catch (error) {
+      console.error('❌ messageme 전송 실패:', error.message);
+      responseText = JSON.stringify({ result: '1100' });
+    }
+
+    client.publish(topic, `relay_response=${responseText}`);
+    console.log('📤 MQTT 회신 메시지 전송 완료');
+  }
 });
 
 // [HTTP 서버 라우팅]
@@ -139,6 +175,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 HTTP 서버 포트: ${PORT}`);
 });
+
 
 
 
